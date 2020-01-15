@@ -7,105 +7,40 @@
  *     - fill arProperties and arPropertyValues on onPrepareComponentParams method
  */
 
-use \Bitrix\Main\Localization\Loc;
-use \Bitrix\Main\Loader;
-use \Bitrix\Sale\Delivery;
+use Bitrix\Main\Context as ContextAlias;
+use Bitrix\Main\Localization\Loc;
+use Bitrix\Main\Loader;
+use Bitrix\Sale\Basket;
+use Bitrix\Sale\BasketItem;
+use Bitrix\Sale\Delivery;
+use Bitrix\Sale\Order;
+use Bitrix\Sale\PropertyValue;
+use Bitrix\Sale\PropertyValueCollection;
+use Bitrix\Sale\PropertyValueCollectionBase;
 
 class customOrderComponent extends CBitrixComponent
 {
 	/**
-	 * @var \Bitrix\Sale\Order
+	 * @var Order
 	 */
-	protected $order;
+	private $order;
 
-	/**
-	 * @var array
-	 */
-	protected $errors = array();
-
-	/**
-	 * @var array Field for ajax request data
-	 */
-	protected $arResponse = array(
-		'errors' => array(),
-		'html' => ''
-	);
-
-	/**
-	 * @var array with \Bitrix\Sale\Property (key equal CODE)
-	 * Filled after setOrderProps() method
-	 */
-	protected $arProperties = array();
-
-	/**
-	 * @var array with Strings
-	 * Filled after setOrderProps() method
-	 */
-	protected $arPropertyValues = array();
-
-	/**
-	 * @var array
-	 */
-	protected $allowActions = array('save');
-
-	/**
-	 * @param string $code
-	 *
-	 * @return false | object
-	 * @note Use after setOrderProps only
-	 */
-	protected function getPropByCode($code)
-	{
-		$result = false;
-
-		/**
-		 * @todo check is a \Bitrix\Sale\Property object
-		 */
-		if (isset($this->arProperties[$code])) {
-			$result = $this->arProperties[$code];
-		}
-
-		return $result;
-	}
-
-	/**
-	 * @return boolean | string | array $result
-	 * @note Use after setOrderProps only
-	 */
-	protected function getPropValueByCode($code)
-	{
-		$result = false;
-
-		if (isset($arPropertyValues[$code])) {
-			$result = $arPropertyValues[$code];
-		}
-		/** @var \Bitrix\Sale\Property */
-		elseif ($property = $this->getPropByCode($code)) {
-			/** @var array */
-			$values = $property->getFieldValues();
-
-			if (isset($values['VALUE'])) {
-				$result = $values['VALUE'];
-			}
-		}
-
-		return $result;
-	}
-
-	function __construct($component = null)
+	public function __construct($component = null)
 	{
 		parent::__construct($component);
 
+		$this->arResult['ERRORS'] = array();
+
 		if ( ! Loader::includeModule('sale')) {
-			$this->errors[] = 'No sale module';
+			$this->arResult['ERRORS'] = 'No sale module';
 		};
 
 		if ( ! Loader::includeModule('catalog')) {
-			$this->errors[] = 'No catalog module';
+			$this->arResult['ERRORS'] = 'No catalog module';
 		};
 	}
 
-	function onPrepareComponentParams($arParams)
+	public function onPrepareComponentParams($arParams)
 	{
 		if (isset($arParams['PERSON_TYPE_ID']) && intval($arParams['PERSON_TYPE_ID']) > 0) {
 			$arParams['PERSON_TYPE_ID'] = intval($arParams['PERSON_TYPE_ID']);
@@ -123,7 +58,7 @@ class customOrderComponent extends CBitrixComponent
 		if (isset($arParams['ACTION']) && strlen($arParams['ACTION']) > 0) {
 			$arParams['ACTION'] = strval($arParams['ACTION']);
 		}
-		elseif (isset($this->request['action']) && in_array($this->request['action'], $this->allowActions)) {
+		elseif (isset($this->request['action'])) {
 			$arParams['ACTION'] = strval($this->request['action']);
 		}
 		else {
@@ -136,9 +71,7 @@ class customOrderComponent extends CBitrixComponent
 		if (isset($arParams['IS_AJAX']) && in_array($arParams['IS_AJAX'], array('Y', 'N'))) {
 			$arParams['IS_AJAX'] = $arParams['IS_AJAX'] == 'Y';
 		}
-		/**
-		 * Same as param with request
-		 */
+		// Same as param with request.
 		elseif (isset($this->request['is_ajax']) && in_array($this->request['is_ajax'], array('Y', 'N'))) {
 			$arParams['IS_AJAX'] = $this->request['is_ajax'] == 'Y';
 		}
@@ -149,155 +82,245 @@ class customOrderComponent extends CBitrixComponent
 		return $arParams;
 	}
 
-	protected function createVirtualOrder()
+	public function executeComponent()
 	{
-		global $USER;
+		global $APPLICATION;
 
-		try {
-			/**
-			 * Get basket items
-			 */
-			$siteId = \Bitrix\Main\Context::getCurrent()->getSite();
-			$basketItems = \Bitrix\Sale\Basket::loadItemsForFUser(
-				\CSaleBasket::GetBasketUserID(),
-				$siteId
-			)
-				->getOrderableItems();
+		$this->createVirtualOrder();
 
-			/**
-			 * Redirect if cart is empty
-			 */
-			// if (count($basketItems) == 0) {
-			//     LocalRedirect(PATH_TO_BASKET);
-			// }
+		switch ($this->arParams['ACTION']) {
+			case "SAVE":
+				$this->saveAction();
+				break;
+		}
 
-			/**
-			 * Create and fill order
-			 */
-			$this->order = \Bitrix\Sale\Order::create($siteId, $USER->GetID());
-			$this->order->setPersonTypeId($this->arParams['PERSON_TYPE_ID']);
-			$this->order->setBasket($basketItems);
+		/** @var Int */
+		$this->arResult['ORDER_ID'] = $this->order->GetId();
+		/** @var array */
+		$this->arResult['ERRORS'] = $this->arResult;
+		/** @var array[CODE]<VALUE> */
+		$this->arResult['PROPERTY_FIELD'] = $this->getPropertiesList();
 
-			/**
-			 * @todo check needed
-			 */
-			// $this->order->doFinalAction(true);
+		if ($this->arParams['IS_AJAX']) {
+			// bad practice
+			$APPLICATION->RestartBuffer();
 
-			$this->setOrderProps();
-
-			$delivery_id = isset($this->request['delivery_id']) ? $this->request['delivery_id'] : 0;
-			$payment_id = isset($this->request['payment_id']) ? $this->request['payment_id'] : 0;
-
-			$this->setOrderShipment($delivery_id);
-			$this->setOrderPayment($payment_id);
-
-			/**
-			 * @todo Check required delivery/payment
-			 */
-		} catch (\Exception $e) {
-			$this->errors[] = $e->getMessage();
+			header('Content-Type: application/json');
+			echo json_encode($this->arResult);
+			$APPLICATION->FinalActions();
+			die();
+		}
+		else {
+			// if( $this->getTemplateName() !== '' )
+			$this->includeComponentTemplate();
 		}
 	}
 
-	protected function setOrderProps()
+	private function getPropertiesList()
+	{
+		$res = array();
+		$propertyCollection = $this->order->getPropertyCollection();
+		if ( ! $propertyCollection) $propertyCollection = array();
+
+		/** @var \Bitrix\Sale\PropertyValue $property */
+		foreach ($propertyCollection as $property) {
+			if ($property->isUtil()) continue;
+
+			$res[$property->getField('CODE')] = $property->getValue();
+		}
+
+		return $res;
+	}
+
+	private function validatePropertiesList()
+	{
+		$propertyCollection = $this->order->getPropertyCollection();
+		if ( ! $propertyCollection) $propertyCollection = array();
+
+		/** @var \Bitrix\Sale\PropertyValue $propertyValue */
+		foreach ($propertyCollection as $propertyValue) {
+			$property = $propertyValue->getProperty();
+			$value = $propertyValue->getValue();
+
+			if (empty($value) && $propertyValue->isRequired()) {
+				$this->arResult["ERRORS"] = sprintf(
+					Loc::getMessage("CUSTOM_ORDER_FIELD_IS_REQUIRED_ERROR"),
+					'<strong>' . $propertyValue->getField('NAME') . '</strong>'
+				);
+
+				continue;
+			}
+
+			/**
+			 * @todo check $property['PATTERN'] instead getField('PATTERN')
+			 */
+			if ( ! $pattern = $propertyValue->getField('PATTERN')) {
+				switch ('Y') {
+					case $property['IS_EMAIL']:
+						$pattern = '^([a-z0-9_-]+\.)*[a-z0-9_-]+@[a-z0-9_-]+(\.[a-z0-9_-]+)*\.[a-z]{2,6}$';
+						break;
+
+					case $property['IS_LOCATION']:
+					case $property['IS_ZIP']:
+					case $property['IS_PHONE']:
+					case $property['IS_ADDRESS']:
+						$pattern = '';
+						break;
+				}
+			}
+
+			if ( ! empty($value) && $pattern && ! preg_match("/{$pattern}/", $value)) {
+				$this->arResult["ERRORS"] = sprintf(
+					Loc::getMessage("CUSTOM_ORDER_FIELD_IS_CORRUPTED_ERROR"),
+					'<strong>' . $propertyValue->getField('NAME') . '</strong>'
+				);
+			}
+
+			/** @todo Check: TYPE, MINLENGTH, MAXLENGTH, MULTILINE */
+		}
+	}
+
+	private function createVirtualOrder()
 	{
 		global $USER;
 
-		$arUser = $USER->GetByID(intval($USER->GetID()))->Fetch();
+		$siteId = \Bitrix\Main\Context::getCurrent()->getSite();
 
-		if (is_array($arUser)) {
-			$arUser['FIO'] = trim(trim($arUser['LAST_NAME']) . ' ' . trim($arUser['NAME']) . ' ' . trim($arUser['SECOND_NAME']));
-			$arUser['ADDRESS'] = ! empty($arUser['UF_PERSONAL_ADDRESS']) ? $arUser['UF_PERSONAL_ADDRESS'] : $arUser['PERSONAL_CITY'] . $arUser['PERSONAL_STREET'];
+		if ( ! $this->arParams['PRODUCT_ID']) {
+			/**
+			 * items from user basket
+			 *
+			 * @var Basket $basket
+			 * @var Basket $basketItems
+			 */
+			$basket = Basket::loadItemsForFUser(
+				\CSaleBasket::GetBasketUserID(),
+				$siteId
+			);
+			$basketItems = $basket->getOrderableItems();
+		}
+		else {
+			/**
+			 * Set item to virtual basket
+			 *
+			 * @var Basket $basket
+			 * @var BasketItem $basketItem
+			 * @var Basket $basketItems
+			 */
+			$basket = Basket::create($siteId);
+			$basketItem = BasketItem::create($basket, 'catalog', $this->arParams['PRODUCT_ID'], $basketCode = null);
+			$basket->addItem($basketItem);
+			$basketItems = $basket->getOrderableItems();
 		}
 
-		/** @var \Bitrix\Sale\Property */
-		foreach ($this->order->getPropertyCollection() as $prop) {
-			/** List of properties by code */
-			$this->arProperties[$prop->getField('CODE')] = $prop;
+		/**
+		 * Create and fill order
+		 */
+		$this->order = Order::create($siteId, $USER->GetID());
+		$this->order->setPersonTypeId($this->arParams['PERSON_TYPE_ID']);
+		$this->order->setBasket($basketItems);
 
-			/** @var string */
-			$propVal = '';
+		$this->order->doFinalAction();
 
-			/** @var string */
-			$code = $prop->getField('CODE');
+		$this->setOrderProperties();
+
+		$delivery_id = $this->request->get('delivery_id');
+		$this->setOrderShipment($delivery_id);
+
+		$payment_id = $this->request->get('payment_id');
+		$this->setOrderPayment($payment_id);
+	}
+
+	private function setOrderProperties()
+	{
+		global $USER;
+
+		$userID = intval($USER->GetID());
+		$arUser = $USER->GetByID($userID)->Fetch();
+
+		/** Fill user virtual data */
+		if (is_array($arUser)) {
+			$arUser['FIO'] = "{$arUser['LAST_NAME']} {$arUser['NAME']} {$arUser['SECOND_NAME']}";
+			$arUser['ADDRESS'] = ! empty($arUser['UF_PERSONAL_ADDRESS']) ? $arUser['UF_PERSONAL_ADDRESS'] : "{$arUser['PERSONAL_CITY']}, {$arUser['PERSONAL_STREET']}";
+		}
+
+		$propertyCollection = $this->order->getPropertyCollection();
+		if ( ! $propertyCollection) $propertyCollection = array();
+
+		/** @var PropertyValue $prop */
+		foreach ($propertyCollection as $prop) {
+			/** @var \Bitrix\Sale\Property $property */
+			$property = $prop->getProperty();
+			/** @var string $propertyCode */
+			$propertyCode = $prop->getField('CODE');
+			/** @var string $propertyValue */
+			$propertyValue = $property['DEFAULT_VALUE'];
 
 			/**
-			 * Get from request
+			 * Insert value from request
+			 *
+			 * @var \Bitrix\Main\Request
 			 */
 			foreach ($this->request as $key => $val) {
 				// No case sensitive
-				if (strtolower($key) == strtolower($code)) {
-					$propVal = strip_tags(is_array($val) ? implode(', ', $val) : $val);
+				if (strtolower($key) == strtolower($propertyCode)) {
+					$propertyValue = strip_tags(is_array($val) ? implode(', ', $val) : $val);
 				}
 			}
 
 			/**
-			 * Get from another data
+			 * Try insert value from user data when value is empty
 			 */
-			if ('' === $propVal) {
-				switch ($code) {
-					case 'PAYER_NAME':
-						if (empty($propVal) && ! empty($arUser['FIO'])) {
-							$propVal = $arUser['FIO'];
-						}
+			if ('' === $propertyValue) {
+				switch ($propertyCode) {
+					case 'FIO':
+						if ( ! empty($arUser['FIO'])) $propertyValue = $arUser['FIO'];
 						break;
 
 					case 'EMAIL':
 					case 'ADDRESS':
-						if (isset($arUser[$code])) {
-							$propVal = $arUser[$code];
-						}
+						if (isset($arUser[$propertyCode])) $propertyValue = $arUser[$propertyCode];
 						break;
 
 					case 'PHONE':
-						if (isset($arUser['PERSONAL_' . $code])) {
-							$propVal = $arUser['PERSONAL_' . $code];
-						}
+					default:
+						if (isset($arUser['PERSONAL_' . $propertyCode])) $propertyValue = $arUser['PERSONAL_' . $propertyCode];
 						break;
 				}
 			}
 
-			/** if is not found */
-			if ('' === $propVal) {
-				$property = $prop->getProperty();
-				$propVal = $property['DEFAULT_VALUE'];
+			// Save to collection.
+			if ($propertyValue || $propertyValue !== $property['DEFAULT_VALUE']) {
+				$prop->setValue($propertyValue);
 			}
-
-			/** if is not empty (may be default string) */
-			if ('' !== $propVal) {
-				$prop->setValue($propVal);
-			}
-
-			/**
-			 * Fill all order properties
-			 */
-			$this->arPropertyValues[$code] = $propVal;
 		}
 
 		/**
-		 * @todo check it
+		 * @note use $this->order->getAvailableFields() for check all fields
 		 */
-		// $this->order->setField('CURRENCY', $CURRENCY_CODE);
-		// $this->order->setField('USER_DESCRIPTION', 'Комментарии пользователя');
-		// $this->order->setField('COMMENTS', 'Комментарии менеджера');
+		if ($userID) $this->order->setField('USER_ID', $userID);
+		if ($comment = $this->request->get('comment')) {
+			$this->order->setField('USER_DESCRIPTION', strip_tags($comment));
+		}
+
+		$this->order->setField('CURRENCY', $this->order->getCurrency());
+		$this->order->setField('COMMENTS', 'From custom order component.');
 	}
 
-	protected function setOrderShipment($delivery_id = 0)
+	private function setOrderShipment($delivery_id = 0)
 	{
-		/* @var \Bitrix\Sale\ShipmentCollection */
-		$shipmentCollection = $this->order->getShipmentCollection();
-
-		if (0 >= ($delivery_id = intval($delivery_id))) {
+		if (($delivery_id = intval($delivery_id)) < 1) {
 			$delivery_id = Delivery\Services\EmptyDeliveryService::getEmptyDeliveryServiceId();
 		}
 
-		$shipment = $shipmentCollection->createItem(
-			Delivery\Services\Manager::getObjectById($delivery_id)
-		);
-
+		/** @var \Bitrix\Sale\ShipmentCollection */
+		$shipmentCollection = $this->order->getShipmentCollection();
+		/** @var Bitrix\Sale\Delivery\Services\Base $service */
+		$service = Delivery\Services\Manager::getObjectById($delivery_id);
+		/** @var \Bitrix\Sale\Shipment $shipment */
+		$shipment = $shipmentCollection->createItem($service);
 		/** @var \Bitrix\Sale\ShipmentItemCollection */
 		$shipmentItemCollection = $shipment->getShipmentItemCollection();
-		$shipment->setField('CURRENCY', $this->order->getCurrency());
 
 		foreach ($this->order->getBasket()->getOrderableItems() as $item) {
 			/**
@@ -308,24 +331,27 @@ class customOrderComponent extends CBitrixComponent
 			$shipmentItem = $shipmentItemCollection->createItem($item);
 			$shipmentItem->setQuantity($item->getQuantity());
 		}
+
+		$shipment->setField('CURRENCY', $this->order->getCurrency());
 	}
 
-	protected function setOrderPayment($payment_id = 0)
+	private function setOrderPayment($payment_id = 0)
 	{
-		if (0 < ($payment_id = intval($payment_id))) {
-			$paymentCollection = $this->order->getPaymentCollection();
+		if ($payment_id = intval($payment_id) < 1) return;
 
-			/** @var \Bitrix\Sale\PaySystem\Service */
-			$service = Bitrix\Sale\PaySystem\Manager::getObjectById($payment_id);
-			/** @var \Bitrix\Sale\Payment */
-			$payment = $paymentCollection->createItem($service);
+		/** @var \Bitrix\Sale\PaymentCollection $paymentCollection */
+		$paymentCollection = $this->order->getPaymentCollection();
+		/** @var \Bitrix\Sale\PaySystem\Service */
+		$service = Bitrix\Sale\PaySystem\Manager::getObjectById($payment_id);
+		/** @var \Bitrix\Sale\Payment */
+		$payment = $paymentCollection->createItem($service);
 
-			$payment->setField("SUM", $this->order->getPrice());
-			$payment->setField("CURRENCY", $this->order->getCurrency());
-		}
+		$payment->setField("SUM", $this->order->getPrice());
+		$payment->setField("CURRENCY", $this->order->getCurrency());
 	}
 
-	protected function setNewUserProperties()
+
+	private function setNewUserProperties()
 	{
 		global $USER;
 
@@ -350,166 +376,39 @@ class customOrderComponent extends CBitrixComponent
 		}
 	}
 
-	protected function validateOrderProperties()
-	{
-		foreach ($this->arProperties as $code => $prop) {
-			$property = $prop->getProperty();
-
-			if ($isFilled = ! empty($this->arPropertyValues[$code])) {
-				$value = $this->arPropertyValues[$code];
-			}
-
-			if ( ! $property['PATTERN']) {
-				if ('Y' === $property['IS_EMAIL']) {
-					$property['PATTERN'] = '^([a-z0-9_-]+\.)*[a-z0-9_-]+@[a-z0-9_-]+(\.[a-z0-9_-]+)*\.[a-z]{2,6}$';
-				}
-				elseif ('Y' === $property['IS_LOCATION']) {
-				}
-				elseif ('Y' === $property['IS_ZIP']) {
-				}
-				elseif ('Y' === $property['IS_PHONE']) {
-				}
-				elseif ('Y' === $property['IS_ADDRESS']) {
-				}
-			}
-
-			if ($prop->isRequired() && ! $isFilled) {
-				$this->errors[] = "Поле <strong>" . $prop->getField('NAME') . "</strong> обязательно к заполнению.";
-			}
-
-			if ($isFilled && $property['PATTERN'] && ! preg_match("/{$property['PATTERN']}/", $value)) {
-				$this->errors[] = "Поле <strong>" . $prop->getField('NAME') . "</strong> заполнено не верно.";
-			}
-
-			/**
-			 * @todo Check:
-			 *       TYPE
-			 *       MINLENGTH
-			 *       MAXLENGTH
-			 *       MULTILINE
-			 */
-		}
-	}
-
-	protected function saveAction()
+	private function saveAction()
 	{
 		global $APPLICATION;
 		global $USER;
 
-		$this->validateOrderProperties();
+		$this->validatePropertiesList();
 
-		if (empty($this->errors)) {
-			/**
-			 * Insert new order
-			 */
-			$r = $this->order->save();
-
-			if ($r->isSuccess()) {
-				// $this->setTemplateName('done');
-				$this->setNewUserProperties();
-				CSaleBasket::DeleteAll(intval($USER->GetID()));
-			}
-			else {
-				if ($ex = $APPLICATION->GetException()) {
-					echo $ex->GetString();
-				}
-
-				// print_r($r->getErrors());
-				$this->errors = array_merge($this->errors, $r->getErrorMessages());
-			}
-
-			// $r->getWarnings()
-			// $warnings = $r->getWarningMessages();
-			// if( !empty( $warnings ) ) {
-			//     $this->errors = array_merge($this->errors, $r->getErrorMessages());
-			// }
-
-			// if( empty($this->errors) ) {
-			//     LocalRedirect('/user/orders/?thankyou=1');
-			// }
-		}
-	}
-
-	function executeComponent()
-	{
-		global $APPLICATION;
-
-		// bad practice
-		if ($this->arParams['IS_AJAX']) {
-			$APPLICATION->RestartBuffer();
-		}
-
-		$this->createVirtualOrder();
-
-		if ( ! empty($this->arParams['ACTION'])) {
-			if (is_callable(array($this, $this->arParams['ACTION'] . "Action"))) {
-				try {
-					call_user_func(array($this, $this->arParams['ACTION'] . "Action"));
-				} catch (\Exception $e) {
-					$this->errors[] = $e->getMessage();
-				}
-			}
-		}
-
-		/** @var Int */
-		$order_id = $this->order->GetId();
+		if ( ! empty($this->arResult['ERRORS'])) return;
 
 		/**
-		 * @todo get payment class from registry
+		 * Insert new order
 		 */
-		// $paymentClassName = $this->registry->getPaymentClassName();
-		/** @var Main\DB\Result $listPayments */
-		// $listPayments = \Bitrix\Sale\PAYMENT::getList(array(
-		//     'select' => array('ID'), // , 'PAY_SYSTEM_NAME', 'PAY_SYSTEM_ID', 'ACCOUNT_NUMBER', 'ORDER_ID', 'PAID', 'SUM', 'CURRENCY', 'DATE_BILL'
-		//     'filter' => array('ORDER_ID' => array($order_id))
-		// ));
+		$r = $this->order->save();
 
-		// $payment_id = 0;
-		// while ($payment = $listPayments->fetch())
-		// {
-		//     /**
-		//      * Get payment ID
-		//      */
-		//     if( !empty($payment['ID']) ) {
-		//         $payment_id = $payment['ID'];
-		//         break;
-		//     }
-		// }
-
-		if ($this->arParams['IS_AJAX']) {
-			// if ($this->getTemplateName() != '') {
-			//     ob_start();
-			//     $this->includeComponentTemplate();
-			//     $this->arResponse['html'] = ob_get_contents();
-			//     ob_end_clean();
-			// }
-
-			$this->arResponse['ORDER_ID'] = $order_id;
-			$this->arResponse['errors'] = $this->errors;
-
-			header('Content-Type: application/json');
-			echo json_encode($this->arResponse);
-			$APPLICATION->FinalActions();
-			die();
+		if ($r->isSuccess()) {
+			$userID = intval($USER->GetID());
+			// Clear user order.
+			(new CSaleBasket)->DeleteAll($userID);
+			// $this->setTemplateName('done');
+			// @todo $this->setNewUserProperties();
 		}
 		else {
-			$this->arResult['ORDER_ID'] = $order_id;
-			$this->arResult['errors'] = $this->errors;
-
-			/**
-			 * Fill all (not util/service) properties value
-			 */
-			$this->arResult['PROPERTY_FIELD'] = array();
-			foreach ($this->arProperties as $code => $prop) {
-				if ($prop->isUtil()) {
-					continue;
-				}
-
-				$this->arResult['PROPERTY_FIELD'][$code] =
-					( ! empty($this->arPropertyValues[$code])) ? $this->arPropertyValues[$code] : '';
-			}
-
-			$this->includeComponentTemplate();
+			$this->arResult['ERRORS'] = array_merge($this->arResult['ERRORS'], $r->getErrorMessages());
 		}
+
+		// $r->getWarnings()
+		// $warnings = $r->getWarningMessages();
+		// if( !empty( $warnings ) ) {
+		//     $this->errors = array_merge($this->errors, $r->getErrorMessages());
+		// }
+
+		// if( empty($this->errors) ) {
+		//     LocalRedirect('/user/orders/?thankyou=1');
+		// }
 	}
 }

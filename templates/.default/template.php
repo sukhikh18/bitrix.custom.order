@@ -12,42 +12,59 @@
 /** @var string $componentPath */
 /** @var customOrderComponent $component */
 
+use Bitrix\Main\Localization\Loc;
+
 ?>
-<form id="checkout-form" method="post" action="">
+<form id="checkout-form" class="order-form" method="post" action="" enctype="multipart/form-data">
 	<?php
 	foreach ($arResult['PROPERTY_FIELD'] as $key => $val) {
 		printf('<input type="hidden" name="%s" value="%s">', strtolower($key), $val);
 	}
 	?>
-
-    <div class="summary__errors">
-		<?php echo implode('<br>', $arResult['errors']); ?>
-    </div>
-
-	<?php /*<div class="summary__address">
-        <label class="address" title="Отправить сертификат на физический адрес">
-            <input type="checkbox"><span>Адрес</span>
-            <input class="form-control" type="text" name="address" placeholder="Адрес доставки сертификата" value="<?=$arResult['PROPERTY_FIELD']['ADDRESS'];?>">
-        </label>
-    </div>*/ ?>
-
-    <div class="summary__payment">
-        <div class="cart-sidebar--title">Оплата:<br><span>Visa\MC</span></div>
-    </div>
-
-    <div class="summary__gift">
-        <label class="gift-form" title="Подарить этот заказ и отправить подарочный сертификат на физический адрес">
-            <input type="checkbox"><span>Подарок</span>
-            <input class="form-control" type="text" name="gift_address" placeholder="Email получателя подарка"
-                   value="<?= $arResult['PROPERTY_FIELD']['GIFT_ADDRESS']; ?>">
-        </label>
-    </div>
-
-    <div class="summary__accept order-accept">
-        <input type="submit" class="btn btn-red" value="Купить">
-    </div>
-
+    <input type="hidden" name="context">
     <input type="hidden" name="action" value="save">
+    <input type="hidden" name="product_id" value="1">
+    <input type="hidden" name="payment_id" value="1">
+    <input type="hidden" name="delivery_id" value="1">
+
+    <div class="order-form__errors">
+		<?php echo implode('<br>', $arResult['ERRORS']); ?>
+    </div>
+
+    <div class="form-group order-form__group">
+        <label for="order-name">Ваше имя<span class="req" style="color: red">*</span></label>
+        <input class="form-control" id="order-name" type="text" name="fio" required="">
+        <label><input type="text" name="surname" value="1" style="display: none;"></label>
+        <label><input type="text" name="birthsday" value="" style="display: none;"></label>
+    </div>
+    <div class="form-group order-form__group">
+        <label for="order-phone">Номер телефона<span class="req" style="color: red">*</span></label>
+        <input class="form-control" id="order-phone" type="tel" name="phone" aria-describedby="phoneHelp" required="">
+        <small class="form-text text-muted" id="phoneHelp">Мы не передаем ваши персональные данные третьим лицам</small>
+    </div>
+    <div class="form-group order-form__group">
+        <label for="order-email">Электронная почта<span class="req" style="color: red">*</span></label>
+        <input class="form-control" id="order-email" type="email" name="email" required="">
+    </div>
+    <div class="form-group order-form__group">
+        <label for="order-address">Адресс доставки</label>
+        <input class="form-control" id="order-address" type="text" name="address" aria-describedby="addressHelp">
+        <small class="form-text text-muted" id="addressHelp">Укажите адресс если нужна доставка</small>
+    </div>
+    <div class="form-group order-form__group">
+        <label for="order-comment">Комментарий</label>
+        <textarea class="form-control" id="order-comment" name="comment"></textarea>
+    </div>
+    <?php/* @todo How release it?
+    <div class="form-group order-form__group">
+        <label for="order-file">Прикрепить файл</label>
+        <input class="form-control" id="order-file" type="file" name="file[]" multiple="">
+    </div>
+    */?>
+
+    <div class="order-form__actions">
+        <button type="submit" class="btn btn-primary"><?= Loc::getMessage("CUSTOM_ORDER_BUY_BUTTON_LABEL") ?></button>
+    </div>
 </form>
 <div class="payment-form" style="display: none;"></div>
 <script type="text/javascript">
@@ -92,7 +109,7 @@
             });
 
             $errors.html(htmlErrors);
-        }
+        };
 
         $address.on('change', 'input[type="checkbox"]', function (event) {
             event.preventDefault();
