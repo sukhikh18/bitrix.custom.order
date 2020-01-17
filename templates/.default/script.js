@@ -39,7 +39,7 @@ jQuery(document).ready(function ($) {
                     },
                 }).done(function (payForm) {
                     $paymentForm.html(payForm);
-                    // $paymentForm.find('form').removeAttr('target').submit();
+                    $paymentForm.find('form').removeAttr('target').submit();
                 });
             })
             .fail(function (data) {

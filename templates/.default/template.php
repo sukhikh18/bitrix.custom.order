@@ -24,7 +24,7 @@ use Bitrix\Main\Localization\Loc;
 	}
 	?>
     <input type="hidden" name="context">
-    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="action" value="<?= $arParams['ACTION'] ?>">
     <input type="hidden" name="product_id" value="<?= $arParams['PRODUCT_ID'] ?>">
     <input type="hidden" name="payment_id" value="<?= $arParams['PAYMENT_ID'] ?>">
     <input type="hidden" name="delivery_id" value="<?= $arParams['DELIVERY_ID'] ?>">

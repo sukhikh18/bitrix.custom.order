@@ -1,12 +1,6 @@
 <? if ( ! defined("B_PROLOG_INCLUDED") || B_PROLOG_INCLUDED !== true) die();
 
-/**
- * New bitrix checkout component
- * maybe @todo
- *     - Set $USER as object property
- *     - fill arProperties and arPropertyValues on onPrepareComponentParams method
- */
-
+use Bitrix\Main\Context;
 use Bitrix\Main\Context as ContextAlias;
 use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\Loader;
@@ -67,14 +61,41 @@ class customOrderComponent extends CBitrixComponent
 	{
 		global $APPLICATION;
 
-		$this->createVirtualOrder();
+		$siteId = Context::getCurrent()->getSite();
+		$fUserId = CSaleBasket::GetBasketUserID();
 
-		switch (strtoupper($this->arParams['ACTION'])) {
-			case "SAVE":
-				$this->validatePropertiesList();
-				$this->updateUserAccount();
-				$this->insertNewOrder();
-				break;
+		$basket = $this->getCurrentBasketObject($siteId, $fUserId);
+
+		$action = strtoupper($this->arParams['ACTION']);
+
+		if ('INSERT_NEW_ORDER' === $action) {
+			$basket = $this->getEmptyBasketObject($siteId, $fUserId);
+			// Insert product to basket by ID
+			$basketItem = $basket->createItem('catalog', $this->arParams['PRODUCT_ID']);
+			$basketItem->setFields(array(
+				'QUANTITY' => 1,
+				'LID' => $siteId,
+				'PRODUCT_PROVIDER_CLASS' => 'CCatalogProductProvider',
+			));
+		}
+
+		$this->createOrder($basket, $siteId);
+
+		$this->setOrderProperties();
+
+		$delivery_id = $this->request->get('delivery_id');
+		$this->setOrderShipment($delivery_id);
+
+		$payment_id = $this->request->get('payment_id');
+		$this->setOrderPayment($payment_id);
+
+		$this->order->doFinalAction();
+
+		if (in_array($action, array('SAVE_BASKET', 'INSERT_NEW_ORDER'), true)) {
+			// @todo check empty basket.
+			$this->validatePropertiesList();
+			$this->updateUserAccount();
+			$this->insertNewOrder();
 		}
 
 		/** @var Int */
@@ -161,48 +182,33 @@ class customOrderComponent extends CBitrixComponent
 		}
 	}
 
-	private function createVirtualOrder()
+	/**
+	 * @param null $siteId
+	 * @param null $fUserId
+	 * @return \Bitrix\Sale\BasketBase
+	 */
+	private function getCurrentBasketObject($siteId = null, $fUserId = null)
+	{
+		return Basket::loadItemsForFUser($fUserId, $siteId);
+	}
+
+	private function getEmptyBasketObject($siteId = null, $fUserId = null)
+	{
+		$basket = Basket::create($siteId);
+		$basket->setFUserId($fUserId);
+
+		return $basket;
+	}
+
+	/**
+	 * @param \Bitrix\Sale\BasketBase $basket
+	 * @param $siteId
+	 */
+	private function createOrder($basket, $siteId)
 	{
 		global $USER;
 
-		$siteId = \Bitrix\Main\Context::getCurrent()->getSite();
-		$fUserId = \CSaleBasket::GetBasketUserID();
-
-		if ( ! $this->arParams['PRODUCT_ID']) {
-			/**
-			 * items from user basket
-			 *
-			 * @var Basket $basket
-			 * @var Basket $basketItems
-			 */
-			$basket = Basket::loadItemsForFUser(
-				$fUserId,
-				$siteId
-			);
-			$basketItems = $basket->getOrderableItems();
-		}
-		else {
-			/**
-			 * Set item to virtual basket
-			 *
-			 * @var Basket $basket
-			 * @var BasketItem $basketItem
-			 * @var Basket $basketItems
-			 */
-			$basket = Basket::create($siteId);
-			$basket->setFUserId($fUserId);
-			if ($this->arParams['IS_AJAX']) {
-				$productID = intval($this->request->get('product_id'));
-				// Insert product to basket by ID
-				$basketItem = $basket->createItem('catalog', $productID);
-				$basketItem->setFields(array(
-					'QUANTITY' => 1,
-					'LID' => $siteId,
-					'PRODUCT_PROVIDER_CLASS' => 'CCatalogProductProvider',
-				));
-			}
-			$basketItems = $basket->getOrderableItems();
-		}
+		$basketItems = $basket->getOrderableItems();
 
 		/**
 		 * Create and fill order
@@ -213,16 +219,6 @@ class customOrderComponent extends CBitrixComponent
 		$this->order->setField('STATUS_ID', 'N'); // Accepted, payment is expected.
 
 		$this->order->setBasket($basketItems);
-
-		$this->setOrderProperties();
-
-		$delivery_id = $this->request->get('delivery_id');
-		$this->setOrderShipment($delivery_id);
-
-		$payment_id = $this->request->get('payment_id');
-		$this->setOrderPayment($payment_id);
-
-		$this->order->doFinalAction();
 	}
 
 	private function setOrderProperties()
@@ -354,10 +350,10 @@ class customOrderComponent extends CBitrixComponent
 	{
 		global $USER;
 
-		if ( ! empty($this->arResult['ERRORS'])) return false;
+		if ( ! empty($this->arResult['ERRORS'])) return;
 
 		$propertyCollection = $this->order->getPropertyCollection();
-		if ( ! $propertyCollection) return false;
+		if ( ! $propertyCollection) return;
 
 		$obUser = new CUser;
 		$arUserFields = array(

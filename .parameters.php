@@ -12,6 +12,17 @@ $arComponentParameters = array(
 //		),
 	),
 	"PARAMETERS" => array(
+		"ACTION" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Action",
+			"TYPE" => "LIST",
+			"VALUES" => array(
+				"SAVE_BASKET" => "Save current basket",
+				"INSERT_NEW_ORDER" => "Insert new order with one product",
+			),
+			"MULTIPLE" => "N",
+			"DEFAULT" => "SAVE_BASKET"
+		),
 		"PERSON_TYPE_ID" => array(
 			"PARENT" => "BASE",
 			"NAME" => "Buyer person type ID",
