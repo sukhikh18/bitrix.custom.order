@@ -32,11 +32,11 @@ class customOrderComponent extends CBitrixComponent
 		$this->arResult['ERRORS'] = array();
 
 		if ( ! Loader::includeModule('sale')) {
-			$this->arResult['ERRORS'] = 'No sale module';
+			$this->arResult['ERRORS'][] = 'No sale module';
 		};
 
 		if ( ! Loader::includeModule('catalog')) {
-			$this->arResult['ERRORS'] = 'No catalog module';
+			$this->arResult['ERRORS'][] = 'No catalog module';
 		};
 	}
 
@@ -88,16 +88,16 @@ class customOrderComponent extends CBitrixComponent
 
 		$this->createVirtualOrder();
 
-		switch ($this->arParams['ACTION']) {
+		switch (strtoupper($this->arParams['ACTION'])) {
 			case "SAVE":
-				$this->saveAction();
+				$this->validatePropertiesList();
+				$this->updateUserAccount();
+				$this->insertNewOrder();
 				break;
 		}
 
 		/** @var Int */
 		$this->arResult['ORDER_ID'] = $this->order->GetId();
-		/** @var array */
-		$this->arResult['ERRORS'] = $this->arResult;
 		/** @var array[CODE]<VALUE> */
 		$this->arResult['PROPERTY_FIELD'] = $this->getPropertiesList();
 
@@ -143,7 +143,7 @@ class customOrderComponent extends CBitrixComponent
 			$value = $propertyValue->getValue();
 
 			if (empty($value) && $propertyValue->isRequired()) {
-				$this->arResult["ERRORS"] = sprintf(
+				$this->arResult["ERRORS"][] = sprintf(
 					Loc::getMessage("CUSTOM_ORDER_FIELD_IS_REQUIRED_ERROR"),
 					'<strong>' . $propertyValue->getField('NAME') . '</strong>'
 				);
@@ -170,7 +170,7 @@ class customOrderComponent extends CBitrixComponent
 			}
 
 			if ( ! empty($value) && $pattern && ! preg_match("/{$pattern}/", $value)) {
-				$this->arResult["ERRORS"] = sprintf(
+				$this->arResult["ERRORS"][] = sprintf(
 					Loc::getMessage("CUSTOM_ORDER_FIELD_IS_CORRUPTED_ERROR"),
 					'<strong>' . $propertyValue->getField('NAME') . '</strong>'
 				);
@@ -185,6 +185,7 @@ class customOrderComponent extends CBitrixComponent
 		global $USER;
 
 		$siteId = \Bitrix\Main\Context::getCurrent()->getSite();
+		$fUserId = \CSaleBasket::GetBasketUserID();
 
 		if ( ! $this->arParams['PRODUCT_ID']) {
 			/**
@@ -194,7 +195,7 @@ class customOrderComponent extends CBitrixComponent
 			 * @var Basket $basketItems
 			 */
 			$basket = Basket::loadItemsForFUser(
-				\CSaleBasket::GetBasketUserID(),
+				$fUserId,
 				$siteId
 			);
 			$basketItems = $basket->getOrderableItems();
@@ -208,8 +209,17 @@ class customOrderComponent extends CBitrixComponent
 			 * @var Basket $basketItems
 			 */
 			$basket = Basket::create($siteId);
-			$basketItem = BasketItem::create($basket, 'catalog', $this->arParams['PRODUCT_ID'], $basketCode = null);
-			$basket->addItem($basketItem);
+			$basket->setFUserId($fUserId);
+			if ($this->arParams['IS_AJAX']) {
+				$productID = intval($this->request->get('product_id'));
+				// Insert product to basket by ID
+				$basketItem = $basket->createItem('catalog', $productID);
+				$basketItem->setFields(array(
+					'QUANTITY' => 1,
+					'LID' => $siteId,
+					'PRODUCT_PROVIDER_CLASS' => 'CCatalogProductProvider',
+				));
+			}
 			$basketItems = $basket->getOrderableItems();
 		}
 
@@ -218,9 +228,10 @@ class customOrderComponent extends CBitrixComponent
 		 */
 		$this->order = Order::create($siteId, $USER->GetID());
 		$this->order->setPersonTypeId($this->arParams['PERSON_TYPE_ID']);
-		$this->order->setBasket($basketItems);
 
-		$this->order->doFinalAction();
+		$this->order->setField('STATUS_ID', 'N'); // Accepted, payment is expected.
+
+		$this->order->setBasket($basketItems);
 
 		$this->setOrderProperties();
 
@@ -229,6 +240,8 @@ class customOrderComponent extends CBitrixComponent
 
 		$payment_id = $this->request->get('payment_id');
 		$this->setOrderPayment($payment_id);
+
+		$this->order->doFinalAction();
 	}
 
 	private function setOrderProperties()
@@ -322,6 +335,12 @@ class customOrderComponent extends CBitrixComponent
 		/** @var \Bitrix\Sale\ShipmentItemCollection */
 		$shipmentItemCollection = $shipment->getShipmentItemCollection();
 
+//		$shipment->setFields(array(
+//			 'ALLOW_DELIVERY' => 'Y',
+//			// 'PRICE_DELIVERY' => 0,
+//			// 'CUSTOM_PRICE_DELIVERY' => 'Y'
+//		));
+
 		foreach ($this->order->getBasket()->getOrderableItems() as $item) {
 			/**
 			 * @var $item \Bitrix\Sale\BasketItem
@@ -337,7 +356,7 @@ class customOrderComponent extends CBitrixComponent
 
 	private function setOrderPayment($payment_id = 0)
 	{
-		if ($payment_id = intval($payment_id) < 1) return;
+		if (($payment_id = intval($payment_id)) < 1) return;
 
 		/** @var \Bitrix\Sale\PaymentCollection $paymentCollection */
 		$paymentCollection = $this->order->getPaymentCollection();
@@ -350,65 +369,80 @@ class customOrderComponent extends CBitrixComponent
 		$payment->setField("CURRENCY", $this->order->getCurrency());
 	}
 
-
-	private function setNewUserProperties()
+	private function updateUserAccount()
 	{
 		global $USER;
 
-		$oUser = new CUser;
+		if ( ! empty($this->arResult['ERRORS'])) return false;
 
-		$aFields = array();
+		$propertyCollection = $this->order->getPropertyCollection();
+		if ( ! $propertyCollection) return false;
 
-		/**
-		 * Set user last delivery address
-		 */
-		if ( ! empty($this->arPropertyValues['ADDRESS'])) {
-			$aFields["UF_PERSONAL_ADDRESS"] = $this->arPropertyValues['ADDRESS'];
+		$obUser = new CUser;
+		$arUserFields = array(
+			"PERSONAL_STREET" => $propertyCollection->getAddress()->getValue(),
+		);
+
+		if ($USER->IsAuthorized()) {
+			$obUser->Update(intval($USER->GetID()), $arUserFields);
 		}
+		elseif ('Y' !== $this->arParams['DO_NOT_REGISTER']) {
+			$newUserPassword = randString(12);
 
-		// list($aFields['LAST_NAME'], $aFields["NAME"], $aFields['SECOND_NAME']) = explode(' ', $this->arResult['PROPERTY_FIELD']['PAYER_NAME']);
+			$arUserFields = array_merge($arUserFields, array(
+				"LID" => 'ru',
+				"ACTIVE" => 'Y' === $this->arParams['NEW_USER_ACTIVATE'] ? 'Y' : 'N',
+				"GROUP_ID" => array($this->arParams['GROUP_ID']),
+				"PASSWORD" => $newUserPassword,
+				"CONFIRM_PASSWORD" => $newUserPassword,
+				"NAME" => $propertyCollection->getPayerName()->getValue(),
+				"EMAIL" => $propertyCollection->getUserEmail()->getValue(),
+				"PERSONAL_PHONE" => $propertyCollection->getPhone()->getValue(),
+				"ADMIN_NOTES" => "User created by Custom Order component.",
+			));
 
-		/**
-		 * Update user fields
-		 */
-		if ( ! empty($aFields)) {
-			$oUser->Update(intval($USER->GetID()), $aFields);
+			list($arUserFields['LOGIN']) = explode('@', $arUserFields['EMAIL']);
+
+			$userID = $obUser->Add($arUserFields);
+
+			if (intval($userID) > 0) {
+//				$arAuthResult = $USER->Login($arUserFields['LOGIN'], $newUserPassword, "Y");
+//				$APPLICATION->arAuthResult = $arAuthResult;
+				$this->order->setFieldNoDemand('USER_ID', $userID);
+			}
+			else {
+				$this->arResult['ERRORS'][] = $obUser->LAST_ERROR;
+			}
 		}
 	}
 
-	private function saveAction()
+	/**
+	 * @return bool
+	 * @throws \Bitrix\Main\ArgumentException
+	 * @throws \Bitrix\Main\ArgumentNullException
+	 * @throws \Bitrix\Main\ArgumentOutOfRangeException
+	 */
+	private function insertNewOrder()
 	{
-		global $APPLICATION;
 		global $USER;
 
-		$this->validatePropertiesList();
+		if (empty($this->arResult['ERRORS'])) {
+			// Insert new order.
+			$r = $this->order->save();
 
-		if ( ! empty($this->arResult['ERRORS'])) return;
-
-		/**
-		 * Insert new order
-		 */
-		$r = $this->order->save();
-
-		if ($r->isSuccess()) {
-			$userID = intval($USER->GetID());
-			// Clear user order.
-			(new CSaleBasket)->DeleteAll($userID);
-			// $this->setTemplateName('done');
-			// @todo $this->setNewUserProperties();
-		}
-		else {
-			$this->arResult['ERRORS'] = array_merge($this->arResult['ERRORS'], $r->getErrorMessages());
+			if ($r->isSuccess()) {
+				$userID = intval($USER->GetID());
+				// Clear user order.
+				(new CSaleBasket)->DeleteAll($userID);
+				// $this->setTemplateName('done');
+				// $this->updateUser();
+				return true;
+			}
+			else {
+				$this->arResult['ERRORS'] = array_merge($this->arResult['ERRORS'], $r->getErrorMessages());
+			}
 		}
 
-		// $r->getWarnings()
-		// $warnings = $r->getWarningMessages();
-		// if( !empty( $warnings ) ) {
-		//     $this->errors = array_merge($this->errors, $r->getErrorMessages());
-		// }
-
-		// if( empty($this->errors) ) {
-		//     LocalRedirect('/user/orders/?thankyou=1');
-		// }
+		return false;
 	}
 }

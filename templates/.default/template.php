@@ -10,12 +10,17 @@
 /** @var string $templateFile */
 /** @var string $templateFolder */
 /** @var string $componentPath */
+
 /** @var customOrderComponent $component */
 
 use Bitrix\Main\Localization\Loc;
 
+$payment_id = isset($arParams['PAYMENT_ID']) ? $arParams['PAYMENT_ID'] : 1;
+$delivery_id = isset($arParams['DELIVERY_ID']) ? $arParams['DELIVERY_ID'] : 1;
+
 ?>
-<form id="checkout-form" class="order-form" method="post" action="" enctype="multipart/form-data">
+<form id="order-form" class="order-form" method="post" action="<?= $APPLICATION->GetCurPage() ?>"
+      enctype="multipart/form-data">
 	<?php
 	foreach ($arResult['PROPERTY_FIELD'] as $key => $val) {
 		printf('<input type="hidden" name="%s" value="%s">', strtolower($key), $val);
@@ -23,9 +28,9 @@ use Bitrix\Main\Localization\Loc;
 	?>
     <input type="hidden" name="context">
     <input type="hidden" name="action" value="save">
-    <input type="hidden" name="product_id" value="1">
-    <input type="hidden" name="payment_id" value="1">
-    <input type="hidden" name="delivery_id" value="1">
+    <input type="hidden" name="product_id" value="<?= $arParams['PRODUCT_ID'] ?>">
+    <input type="hidden" name="payment_id" value="<?= $payment_id ?>">
+    <input type="hidden" name="delivery_id" value="<?= $delivery_id ?>">
 
     <div class="order-form__errors">
 		<?php echo implode('<br>', $arResult['ERRORS']); ?>
@@ -67,105 +72,3 @@ use Bitrix\Main\Localization\Loc;
     </div>
 </form>
 <div class="payment-form" style="display: none;"></div>
-<script type="text/javascript">
-    jQuery(document).ready(function ($) {
-        var $checkoutForm = $('#checkout-form');
-        var $paymentForm = $('.payment-form');
-        var $errors = $('.summary__errors');
-
-        var $address = $('.summary__address', $checkoutForm);
-        var $gift = $('.summary__gift', $checkoutForm);
-
-        /**
-         * @param  {[type]}  $target   [description]
-         * @param  {Boolean} isChecked [description]
-         * @return {[type]}            [description]
-         */
-        var clearInputs = function ($target, isChecked) {
-            var $input = $target.find('input[type="text"]');
-
-            if (isChecked) {
-                var val = $input.attr('data-val');
-                // restore data from data-val and undisable
-                if (val) $input.val(val)
-                $input.removeAttr('disabled');
-            } else {
-                $input
-                    .attr('data-val', $input.val())
-                    .val('')
-                    .attr('disabled', 'disabled');
-            }
-        }
-
-        /**
-         * [checkOutErrors description]
-         * @param  {JSON}   data Response from ajax
-         * @return {[type]}      [description]
-         */
-        var checkOutErrors = function (data) {
-            console.log(data.errors);
-            var htmlErrors = $.map(data.errors, function (item, index) {
-                return item + '<br>';
-            });
-
-            $errors.html(htmlErrors);
-        };
-
-        $address.on('change', 'input[type="checkbox"]', function (event) {
-            event.preventDefault();
-
-            clearInputs($address, $(this).is(':checked'));
-        });
-
-        $('input[type="checkbox"]', $address).trigger('change');
-
-        $gift.on('change', 'input[type="checkbox"]', function (event) {
-            event.preventDefault();
-
-            clearInputs($gift, $(this).is(':checked'));
-        });
-
-        $('input[type="checkbox"]', $gift).trigger('change');
-
-        function getPaymentForm(data) {
-            try {
-                if (data.errors.length == 0) {
-                    $.ajax({
-                        url: '/user/payment/',
-                        type: 'GET',
-                        dataType: 'HTML',
-                        data: {
-                            'ORDER_ID': data.ORDER_ID,
-                        },
-                    }).done(function (payForm) {
-                        $paymentForm.html(payForm);
-                        $paymentForm.find('form').removeAttr('target').submit();
-                    });
-                } else {
-                    checkOutErrors(data);
-                }
-            } catch (e) {
-                checkOutErrors(data);
-                console.log(e);
-            }
-        }
-
-        // Save order
-        $checkoutForm.on('submit', function (event) {
-            event.preventDefault();
-
-            $.ajax({
-                url: $checkoutForm.attr('action'),
-                type: 'POST',
-                dataType: 'json',
-                data: $checkoutForm.serialize() + '&is_ajax=Y',
-            })
-                .done(getPaymentForm)
-                .fail(function (data) {
-                    checkOutErrors(data);
-                });
-
-            return false;
-        });
-    });
-</script>

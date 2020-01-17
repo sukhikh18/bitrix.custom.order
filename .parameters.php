@@ -12,23 +12,47 @@ $arComponentParameters = array(
 //		),
 	),
 	"PARAMETERS" => array(
-		"DO_NOT_REGISTER"    =>  array(
-			"PARENT"    =>  "BASE",
-			"NAME"      =>  "User must be authorized",
-			"TYPE"      =>  "CHECKBOX",
-			"DEFAULT"   =>  "N"
+		"PERSON_TYPE_ID" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Buyer person type ID",
+			"TYPE" => "STRING",
+			"DEFAULT" => "1"
 		),
-		"NEW_USER_ACTIVATE"    =>  array(
-			"PARENT"    =>  "BASE",
-			"NAME"      =>  "Activate user after order registration",
-			"TYPE"      =>  "CHECKBOX",
-			"DEFAULT"   =>  "N"
+		"GROUP_ID" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Register user in group with ID",
+			"TYPE" => "STRING",
+			"DEFAULT" => "1"
 		),
-		"PRODUCT_ID"    =>  array(
-			"PARENT"    =>  "BASE",
-			"NAME"      =>  "Insert product to custom order (Must be product ID / int)",
-			"TYPE"      =>  "STRING",
-			"DEFAULT"   =>  ""
+		"DO_NOT_REGISTER" => array(
+			"PARENT" => "BASE",
+			"NAME" => "User must be authorized",
+			"TYPE" => "CHECKBOX",
+			"DEFAULT" => "N"
+		),
+		"NEW_USER_ACTIVATE" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Activate user after order registration",
+			"TYPE" => "CHECKBOX",
+			"DEFAULT" => "N"
+		),
+		"PRODUCT_ID" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Insert product to custom order (Must be product ID / int)",
+			"TYPE" => "STRING",
+			"DEFAULT" => ""
+		),
+		"PAYMENT_ID" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Default payment ID",
+			"TYPE" => "STRING",
+			"DEFAULT" => "1"
+		),
+		"DELIVERY_ID" => array(
+			"PARENT" => "BASE",
+			"NAME" => "Default delivery ID",
+			"TYPE" => "STRING",
+			"DEFAULT" => ""
 		),
 	),
 );
