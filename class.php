@@ -66,7 +66,7 @@ class customOrderComponent extends CBitrixComponent
 
 		$basket = $this->getCurrentBasketObject($siteId, $fUserId);
 
-		$action = strtoupper($this->arParams['ACTION']);
+		if ($action = $this->request->get('action')) $action = strtoupper(strval($action));
 
 		if ('INSERT_NEW_ORDER' === $action) {
 			$basket = $this->getEmptyBasketObject($siteId, $fUserId);

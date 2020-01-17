@@ -16,6 +16,8 @@
 use Bitrix\Main\Localization\Loc;
 
 ?>
+
+<div class="payment-form" style="display: none;"></div>
 <form id="order-form" class="order-form" method="post" action="<?= $APPLICATION->GetCurPage() ?>"
       enctype="multipart/form-data">
 	<?php
@@ -33,11 +35,12 @@ use Bitrix\Main\Localization\Loc;
 		<?php echo implode('<br>', $arResult['ERRORS']); ?>
     </div>
 
+    <label style="overflow: hidden;height: 0;max-height: 0;"><input type="text" name="surname" value="1"></label>
+    <label style="overflow: hidden;height: 0;max-height: 0;"><input type="text" name="birthsday" value=""></label>
+
     <div class="form-group order-form__group">
         <label for="order-name">Ваше имя<span class="req" style="color: red">*</span></label>
         <input class="form-control" id="order-name" type="text" name="fio" required="">
-        <label><input type="text" name="surname" value="1" style="display: none;"></label>
-        <label><input type="text" name="birthsday" value="" style="display: none;"></label>
     </div>
     <div class="form-group order-form__group">
         <label for="order-phone">Номер телефона<span class="req" style="color: red">*</span></label>
@@ -68,4 +71,3 @@ use Bitrix\Main\Localization\Loc;
         <button type="submit" class="btn btn-primary"><?= Loc::getMessage("CUSTOM_ORDER_BUY_BUTTON_LABEL") ?></button>
     </div>
 </form>
-<div class="payment-form" style="display: none;"></div>
