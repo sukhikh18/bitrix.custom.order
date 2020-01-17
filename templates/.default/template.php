@@ -15,9 +15,6 @@
 
 use Bitrix\Main\Localization\Loc;
 
-$payment_id = isset($arParams['PAYMENT_ID']) ? $arParams['PAYMENT_ID'] : 1;
-$delivery_id = isset($arParams['DELIVERY_ID']) ? $arParams['DELIVERY_ID'] : 1;
-
 ?>
 <form id="order-form" class="order-form" method="post" action="<?= $APPLICATION->GetCurPage() ?>"
       enctype="multipart/form-data">
@@ -29,8 +26,8 @@ $delivery_id = isset($arParams['DELIVERY_ID']) ? $arParams['DELIVERY_ID'] : 1;
     <input type="hidden" name="context">
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="product_id" value="<?= $arParams['PRODUCT_ID'] ?>">
-    <input type="hidden" name="payment_id" value="<?= $payment_id ?>">
-    <input type="hidden" name="delivery_id" value="<?= $delivery_id ?>">
+    <input type="hidden" name="payment_id" value="<?= $arParams['PAYMENT_ID'] ?>">
+    <input type="hidden" name="delivery_id" value="<?= $arParams['DELIVERY_ID'] ?>">
 
     <div class="order-form__errors">
 		<?php echo implode('<br>', $arResult['ERRORS']); ?>

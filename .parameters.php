@@ -46,7 +46,7 @@ $arComponentParameters = array(
 			"PARENT" => "BASE",
 			"NAME" => "Default payment ID",
 			"TYPE" => "STRING",
-			"DEFAULT" => "1"
+			"DEFAULT" => "4"
 		),
 		"DELIVERY_ID" => array(
 			"PARENT" => "BASE",
@@ -56,3 +56,5 @@ $arComponentParameters = array(
 		),
 	),
 );
+
+return $arComponentParameters;

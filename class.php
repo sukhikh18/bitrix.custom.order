@@ -42,41 +42,22 @@ class customOrderComponent extends CBitrixComponent
 
 	public function onPrepareComponentParams($arParams)
 	{
-		if (isset($arParams['PERSON_TYPE_ID']) && intval($arParams['PERSON_TYPE_ID']) > 0) {
-			$arParams['PERSON_TYPE_ID'] = intval($arParams['PERSON_TYPE_ID']);
-		}
-		elseif (intval($this->request['payer']['person_type_id']) > 0) {
-			$arParams['PERSON_TYPE_ID'] = intval($this->request['payer']['person_type_id']);
-		}
-		else {
-			$arParams['PERSON_TYPE_ID'] = 1;
+		if ($personTypeId = $this->request->get('person_type_id')) $arParams['PERSON_TYPE_ID'] = intval($personTypeId);
+		if ($action = $this->request->get('action')) $arParams['ACTION'] = strval($action);
+		if ($productId = $this->request->get('product_id')) $arParams['PRODUCT_ID'] = intval($productId);
+		if ($paymentId = $this->request->get('payment_id')) $arParams['PAYMENT_ID'] = intval($paymentId);
+		if ($deliveryId = $this->request->get('delivery_id')) $arParams['DELIVERY_ID'] = intval($deliveryId);
+
+		$arComponentParameters = include __DIR__ . '/.parameters.php';
+		foreach ($arComponentParameters['PARAMETERS'] as $code => $arParameter) {
+			if (empty($arParams[$code]) && isset($arParameter['DEFAULT'])) {
+				$arParams[$code] = $arParameter['DEFAULT'];
+			}
 		}
 
-		/**
-		 * If is ACTION param exists, strval to define
-		 */
-		if (isset($arParams['ACTION']) && strlen($arParams['ACTION']) > 0) {
-			$arParams['ACTION'] = strval($arParams['ACTION']);
-		}
-		elseif (isset($this->request['action'])) {
-			$arParams['ACTION'] = strval($this->request['action']);
-		}
-		else {
-			$arParams['ACTION'] = '';
-		}
-
-		/**
-		 * If is IS_AJAX param exists, check the true defined
-		 */
-		if (isset($arParams['IS_AJAX']) && in_array($arParams['IS_AJAX'], array('Y', 'N'))) {
-			$arParams['IS_AJAX'] = $arParams['IS_AJAX'] == 'Y';
-		}
-		// Same as param with request.
-		elseif (isset($this->request['is_ajax']) && in_array($this->request['is_ajax'], array('Y', 'N'))) {
-			$arParams['IS_AJAX'] = $this->request['is_ajax'] == 'Y';
-		}
-		else {
-			$arParams['IS_AJAX'] = false;
+		$arParams['IS_AJAX'] = false;
+		if (in_array($this->request->get('is_ajax'), array('Y', 'N'), true)) {
+			$arParams['IS_AJAX'] = 'Y' === $this->request['is_ajax'];
 		}
 
 		return $arParams;
