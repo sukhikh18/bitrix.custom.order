@@ -79,7 +79,7 @@ class customOrderComponent extends CBitrixComponent
 			));
 		}
 
-		$this->createOrder($basket, $siteId);
+		$this->initOrder($basket, $siteId);
 
 		$this->setOrderProperties();
 
@@ -204,7 +204,7 @@ class customOrderComponent extends CBitrixComponent
 	 * @param \Bitrix\Sale\BasketBase $basket
 	 * @param $siteId
 	 */
-	private function createOrder($basket, $siteId)
+	private function initOrder($basket, $siteId)
 	{
 		global $USER;
 

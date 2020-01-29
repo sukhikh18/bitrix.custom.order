@@ -24,11 +24,43 @@ jQuery(document).ready(function ($) {
             }
         };
 
+        /**
+         * Serialize form data with files
+         *
+         * @param  [jQueryObject] $form form for serialize.
+         * @return [FormData]
+         */
+        var serializeForm = function( $form ) {
+            var formData = new FormData();
+
+            // Append form data.
+            var params = $form.serializeArray();
+            $.each(params, function (i, val) {
+                formData.append(val.name, val.value);
+            });
+
+            // Append files.
+            $.each($form.find("input[type='file']"), function(i, tag) {
+                $.each($(tag)[0].files, function(i, file) {
+                    formData.append(tag.name, file);
+                });
+            });
+
+            // Append is ajax mark.
+            formData.append('is_ajax', 'Y');
+
+            return formData;
+        }
+
         $.ajax({
             url: $orderForm.attr('action'),
             type: 'POST',
             dataType: 'json',
-            data: $orderForm.serialize() + '&is_ajax=Y',
+            async: false,
+            cache: false,
+            contentType: false,
+            processData: false,
+            data: serializeForm($orderForm)
         })
             .done(function (data) {
                 if (isHasErrors(data)) {
@@ -45,7 +77,8 @@ jQuery(document).ready(function ($) {
                 }).done(function (payForm) {
                     $paymentForm.html(payForm);
                     $paymentForm.find('form').removeAttr('target').submit();
-                    window.location.href = $paymentForm.find('a').attr('href');
+                    var href = $paymentForm.find('a').attr('href');
+                    if(href) window.location.href = href;
 
                     // When some go wrong...
                     setTimeout(function() {
