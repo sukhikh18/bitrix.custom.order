@@ -15,57 +15,53 @@
 
 use Bitrix\Main\Localization\Loc;
 
+$required_label = '<span class="req" style="color: red">*</span>';
+global $USER;
+echo "<pre>";
+var_dump( $USER->getID() );
+echo "</pre>";
 ?>
 
 <div class="payment-form" style="display: none;"></div>
 <form id="order-form" class="order-form" method="post" action="<?= $APPLICATION->GetCurPage() ?>"
       enctype="multipart/form-data">
-	<?php
-	foreach ($arResult['PROPERTY_FIELD'] as $key => $val) {
-		printf('<input type="hidden" name="%s" value="%s">', strtolower($key), $val);
-	}
-	?>
+    <div class="order-form__errors">
+        <?php echo implode('<br>', $arResult['ERRORS']); ?>
+    </div>
     <input type="hidden" name="context">
     <input type="hidden" name="action" value="<?= $arParams['ACTION'] ?>">
     <input type="hidden" name="product_id" value="<?= $arParams['PRODUCT_ID'] ?>">
     <input type="hidden" name="payment_id" value="<?= $arParams['PAYMENT_ID'] ?>">
     <input type="hidden" name="delivery_id" value="<?= $arParams['DELIVERY_ID'] ?>">
+	<?php
+	foreach ($arResult['PROPERTY_FIELD']['HIDDEN'] as $code => $arField) {
+		printf('<input type="%s" name="%s" value="%s"%s>',
+            $arField['TYPE'],
+            strtolower($arField['NAME']),
+            $arField['VALUE'],
+            $arField['REQUIRED'] ? ' required="true"' : ''
+        );
+	}
 
-    <div class="order-form__errors">
-		<?php echo implode('<br>', $arResult['ERRORS']); ?>
-    </div>
+    foreach ($arResult['PROPERTY_FIELD']['VISIBLE'] as $code => $arField) {
+        printf('
+            <div class="form-group order-form__group">
+                <label for="order-%1$s">%2$s%3$s</label>
+                <input class="form-control" id="order-%1$s" type="text" name="%5$s"%4$s>
+                %6$s
+            </div>',
+            $code,
+            $arField['LABEL'],
+            $arField['REQUIRED'] ? $required_label : '',
+            $arField['REQUIRED'] ? ' required="true"' : '',
+            $arField['NAME'],
+            $arField['DESC'] ? '<small class="form-text text-muted">'.$arField['DESC'].'</small>' : ''
+        );
+    }
+	?>
 
-    <label style="overflow: hidden;height: 0;max-height: 0;"><input type="text" name="surname" value="1"></label>
-    <label style="overflow: hidden;height: 0;max-height: 0;"><input type="text" name="birthsday" value=""></label>
-
-    <div class="form-group order-form__group">
-        <label for="order-name">Ваше имя<span class="req" style="color: red">*</span></label>
-        <input class="form-control" id="order-name" type="text" name="fio" required="">
-    </div>
-    <div class="form-group order-form__group">
-        <label for="order-phone">Номер телефона<span class="req" style="color: red">*</span></label>
-        <input class="form-control" id="order-phone" type="tel" name="phone" aria-describedby="phoneHelp" required="">
-        <small class="form-text text-muted" id="phoneHelp">Мы не передаем ваши персональные данные третьим лицам</small>
-    </div>
-    <div class="form-group order-form__group">
-        <label for="order-email">Электронная почта<span class="req" style="color: red">*</span></label>
-        <input class="form-control" id="order-email" type="email" name="email" required="">
-    </div>
-    <div class="form-group order-form__group">
-        <label for="order-address">Адресс доставки</label>
-        <input class="form-control" id="order-address" type="text" name="address" aria-describedby="addressHelp">
-        <small class="form-text text-muted" id="addressHelp">Укажите адресс если нужна доставка</small>
-    </div>
-    <div class="form-group order-form__group">
-        <label for="order-comment">Комментарий</label>
-        <textarea class="form-control" id="order-comment" name="comment"></textarea>
-    </div>
-    <?php/* @todo How release it?
-    <div class="form-group order-form__group">
-        <label for="order-file">Прикрепить файл</label>
-        <input class="form-control" id="order-file" type="file" name="file[]" multiple="">
-    </div>
-    */?>
+    <label style="margin:0;overflow:hidden;height:0;max-height:0;"><input type="text" name="surname" value="1"></label>
+    <label style="margin:0;overflow:hidden;height:0;max-height:0;"><input type="text" name="birthsday" value=""></label>
 
     <div class="order-form__actions">
         <button type="submit" class="btn btn-primary"><?= Loc::getMessage("CUSTOM_ORDER_BUY_BUTTON_LABEL") ?></button>
