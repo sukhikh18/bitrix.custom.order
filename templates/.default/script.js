@@ -16,10 +16,9 @@ jQuery(document).ready(function ($) {
         };
 
         var showErrors = function (response) {
-            if( undefined !== response.ERRORS && response.ERRORS.length ) {
+            if (undefined !== response.ERRORS && response.ERRORS.length) {
                 showErrorMessage(response.ERRORS.join('<br>') + '<br>')
-            }
-            else {
+            } else {
                 showErrorMessage('К сожалению что то пошло не так. Обратитесь к администратору сайта.');
             }
         };
@@ -30,7 +29,7 @@ jQuery(document).ready(function ($) {
          * @param  [jQueryObject] $form form for serialize.
          * @return [FormData]
          */
-        var serializeForm = function( $form ) {
+        var serializeForm = function ($form) {
             var formData = new FormData();
 
             // Append form data.
@@ -40,8 +39,8 @@ jQuery(document).ready(function ($) {
             });
 
             // Append files.
-            $.each($form.find("input[type='file']"), function(i, tag) {
-                $.each($(tag)[0].files, function(i, file) {
+            $.each($form.find("input[type='file']"), function (i, tag) {
+                $.each($(tag)[0].files, function (i, file) {
                     formData.append(tag.name, file);
                 });
             });
@@ -78,10 +77,10 @@ jQuery(document).ready(function ($) {
                     $paymentForm.html(payForm);
                     $paymentForm.find('form').removeAttr('target').submit();
                     var href = $paymentForm.find('a').attr('href');
-                    if(href) window.location.href = href;
+                    if (href) window.location.href = href;
 
                     // When some go wrong...
-                    setTimeout(function() {
+                    setTimeout(function () {
                         // Its no bug, its future.
                         $paymentForm.fadeIn();
                     }, 5000);

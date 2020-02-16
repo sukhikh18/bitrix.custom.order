@@ -27,38 +27,6 @@ interface iCustomOrderComponent {
 	function insertNewOrder(); // private
 }
 
-function executeComponent() {}
-executeComponent(function() {
-	$basket = $this->getCurrentBasketObject();
-
-	if('INSERT_NEW_ORDER' === $action) {
-		$basket = $this->getEmptyBasketObject();
-		// Insert product to basket by ID
-	}
-
-	$this->initOrder($basket, $siteId);
-	// @todo
-	$this->setOrderProperties();
-	$this->setOrderShipment($delivery_id);
-	$this->setOrderPayment($payment_id);
-
-	if (in_array($action, array('SAVE_BASKET', 'INSERT_NEW_ORDER'), true)) {
-		// @todo
-		$this->validatePropertiesList();
-		// @todo
-		$this->updateUserAccount();
-		$this->insertNewOrder();
-	}
-
-	/** @var Int */
-	$this->arResult['ORDER_ID'] = $this->order->GetId();
-	/** @var array[CODE]<VALUE> */
-	$this->arResult['PROPERTY_FIELD'] = $this->getPropertiesList();
-
-	$this->arParams['IS_AJAX'] ? json_encode($this->arResult) : $this->includeComponentTemplate();
-});
-
-
 class customOrderComponent extends CBitrixComponent
 {
 	/**
@@ -125,7 +93,7 @@ class customOrderComponent extends CBitrixComponent
 				'PRODUCT_PROVIDER_CLASS' => 'CCatalogProductProvider',
 			));
 
-			if( ! $r->isSuccess()) {
+			if ( ! $r->isSuccess()) {
 				$this->arResult["ERRORS"][] = 'Не удалось добавить товар';
 			}
 		}
@@ -194,7 +162,7 @@ class customOrderComponent extends CBitrixComponent
 					break;
 			}
 
-			$arProperties['hidden' === $type ? 'HIDDEN' : 'VISIBLE'][ $code ] = array(
+			$arProperties['hidden' === $type ? 'HIDDEN' : 'VISIBLE'][$code] = array(
 				'NAME' => strtolower($code), // 'order_' .
 				'LABEL' => $arProperty['NAME'],
 				'TYPE' => $type,
@@ -203,8 +171,8 @@ class customOrderComponent extends CBitrixComponent
 				'DESC' => $arProperty['DESCRIPTION'],
 			);
 
-			if('EMAIL' === $code) {
-				$arProperties['VISIBLE'][ $code ]['TYPE'] = 'email';
+			if ('EMAIL' === $code) {
+				$arProperties['VISIBLE'][$code]['TYPE'] = 'email';
 			}
 		}
 
