@@ -41,16 +41,17 @@ $required_label = '<span class="req" style="color: red">*</span>';
 
 	foreach ($arResult['PROPERTY_FIELD']['VISIBLE'] as $code => $arField) {
 		printf('
-            <div class="form-group order-form__group">
+            <div class="order-form__group form-group form-group--%1$s">
                 <label for="order-%1$s">%2$s%3$s</label>
-                <input class="form-control" id="order-%1$s" type="text" name="%5$s"%4$s>
-                %6$s
+                <input class="form-control" id="order-%1$s" type="text" name="%5$s" value="%6$s"%4$s>
+                %7$s
             </div>',
-			$code,
+			strtolower($code),
 			$arField['LABEL'],
 			$arField['REQUIRED'] ? $required_label : '',
 			$arField['REQUIRED'] ? ' required="true"' : '',
 			$arField['NAME'],
+			$arField['VALUE'],
 			$arField['DESC'] ? '<small class="form-text text-muted">' . $arField['DESC'] . '</small>' : ''
 		);
 	}
