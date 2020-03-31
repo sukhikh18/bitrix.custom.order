@@ -189,7 +189,15 @@ class customOrderComponent extends CBitrixComponent
 		/** Fill user virtual data */
 		if (is_array($arUser)) {
 			$arUser['FIO'] = "{$arUser['LAST_NAME']} {$arUser['NAME']} {$arUser['SECOND_NAME']}";
-			$arUser['ADDRESS'] = ! empty($arUser['UF_PERSONAL_ADDRESS']) ? $arUser['UF_PERSONAL_ADDRESS'] : "{$arUser['PERSONAL_CITY']}, {$arUser['PERSONAL_STREET']}";
+			if( ! empty($arUser['UF_PERSONAL_ADDRESS'])) {
+				$arUser['ADDRESS'] = $arUser['UF_PERSONAL_ADDRESS'];
+			}
+			else {
+				$address = array();
+				if($arUser['PERSONAL_CITY']) array_push($address, $arUser['PERSONAL_CITY']);
+				if($arUser['PERSONAL_STREET']) array_push($address, $arUser['PERSONAL_STREET']);
+				$arUser['ADDRESS'] = implode(', ', $address);
+			}
 		}
 
 		$propertyCollection = $this->order->getPropertyCollection();
